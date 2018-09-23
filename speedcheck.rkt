@@ -6,7 +6,7 @@
 
 (require racket/tcp)
 
-;serve a client with the given channels
+;serve ad client with the given channels
 (define (serve in out)
   (define cmd (read-byte in))
   (match cmd
@@ -52,8 +52,24 @@
   (define-values (a b c d) (time-apply f null))
   b)
 
+(define (get-connect s)
+  (match (regexp-match-positions #rx"connect .*" s)
+    [(list (cons a b)) (display (substring s 8))] 
+    [#f (display "bad")]))
+
 (define (speedcheck-client)
-  (define-values (in out) (tcp-connect "localhost" 8081))
-  (with-time (lambda () (request-download 100 in out)))
-  (close-input-port in)
-  (close-output-port out))
+  (define (loop)
+    (define cmd (read-line))
+    (match cmd
+      [(? (lambda (x) (regexp-match-positions #rx"connect .*" x))  _) (display (substring cmd 8))
+                         (loop)]
+      ["quit" null]
+      [_ (display "bad")
+         (loop)]))
+  (loop)
+  (display "done")
+;  (define-values (in out) (tcp-connect "localhost" 8081))
+ ; (with-time (lambda () (request-download 100 in out)))
+  ;(close-input-port in)
+  ;(close-output-port out))
+  )
