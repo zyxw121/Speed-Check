@@ -29,7 +29,7 @@
 
 (define (request-upload n in out)
   (for/list ([i (in-range n)])
-    (write-bytes (make-bytes (* 1000 1000) 0) in)))
+    (write-bytes (make-bytes (* 1000 1000) 0) out)))
 
 (define (request-download n in out)
   (write-bytes (make-bytes 1 0) out)
@@ -39,7 +39,7 @@
     (read-bytes (* 1000 1000) in)))
 
 (define (speedcheck-server)
-  (define listener (tcp-listen 8081))
+  (define listener (tcp-listen 8080))
   (define (loop) 
     (let-values ([(in out) (tcp-accept listener)])
       (serve in out)
@@ -52,24 +52,42 @@
   (define-values (a b c d) (time-apply f null))
   b)
 
-(define (get-connect s)
-  (match (regexp-match-positions #rx"connect .*" s)
-    [(list (cons a b)) (display (substring s 8))] 
-    [#f (display "bad")]))
+(define (connect-loop in out)
+  (define cmd (read-line))
+  (match cmd
+    [(? (lambda (x) (regexp-match-positions #rx"up .*" x))  (app (lambda (x) (string->number (substring x 3))) (? number? n) )) 
+                       (define t (with-time (lambda () (request-upload n in out))))
+                       (display t)
+                       (display "ms   ")
+                       (display (exact->inexact (/ (round (/ (* 100000 n) t)) 100))) ;horrible
+                       (displayln "MBps")
+                       (connect-loop in out)]    
+    [(? (lambda (x) (regexp-match-positions #rx"down .*" x))  (app (lambda (x) (string->number (substring x 5))) (? number? n) ))
+                       (define t (with-time (lambda () (request-download n in out))))
+                       (display t)
+                       (display "ms   ")
+                       (display (exact->inexact (/ (round (/ (* 100000 n) t)) 100))) ;horrible
+                       (displayln "MBps")
+                       (connect-loop in out)]
+    [":q" (displayln "Disconnected from server")
+                  (close-input-port in)
+                  (close-output-port out)]
+    [":?" (displayln "help")
+          (connect-loop in out)]
+    [_ (displayln "Bad input")])
+  )
 
 (define (speedcheck-client)
   (define (loop)
-    (define cmd (read-line))
-    (match cmd
-      [(? (lambda (x) (regexp-match-positions #rx"connect .*" x))  _) (display (substring cmd 8))
-                         (loop)]
-      ["quit" null]
-      [_ (display "bad")
-         (loop)]))
-  (loop)
-  (display "done")
-;  (define-values (in out) (tcp-connect "localhost" 8081))
- ; (with-time (lambda () (request-download 100 in out)))
-  ;(close-input-port in)
-  ;(close-output-port out))
-  )
+  (define cmd (read-line))
+  (match cmd
+    [(? (lambda (x) (regexp-match-positions #rx"connect .*" x))  _) (define-values (in out) (tcp-connect (substring cmd 8) 8080))
+                       (displayln (string-append "Connected to server " (substring cmd 8) ))
+                       (connect-loop in out)                                            
+                       (loop)]
+    [":q" (displayln "Quitting")]
+    [":?" (displayln "help")]
+    [_ (displayln "Bad input")
+       (loop)]))
+  (displayln "Speedcheck, version 0.0.1: https://github.com/zyxw121/Speed-Check   :? for help")
+  (loop))
