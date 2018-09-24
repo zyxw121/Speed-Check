@@ -1,6 +1,7 @@
 # Speed-Check
 Lightweight Download/Upload Speed Testing Server and Client
 
+
 ## Getting Started
 
 Compile the Racket files `speedcheck.rkt` and `speedcheck-server.rkt`:
@@ -11,6 +12,9 @@ $ raco exe speedcheck-server.rkt
 ```
 
 This creates two executables, the Speed-Check client and server. 
+
+The service communicates using port 8080, so make sure it's unblocked.
+
 
 ## Usage
 Run `speedcheck` on the client to open the interactive prompt.
@@ -37,3 +41,5 @@ Once you're connected, you can use the commands `up [number of MB to send]` and 
 ```
 
 The command `:d` disconnects from the current server and `:q` quits the session.
+
+

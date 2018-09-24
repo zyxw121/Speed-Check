@@ -1,5 +1,5 @@
 #lang racket
 (require racket/tcp)
-(require "speedcheck-server.rkt")
+(require "speedcheck-lib.rkt")
 
 (speedcheck-client)
