@@ -6,6 +6,12 @@
 
 (require racket/tcp)
 
+(define (start-serve listener)
+  (let-values ([(in out) (tcp-accept listener)])
+      (serve in out)
+      (close-input-port in)
+      (close-output-port out)))
+
 ;serve a client with the given channels
 (define (serve in out)
   (define cmd (read-byte in))
@@ -14,6 +20,7 @@
                (serve in out)]
     [1 (handle-upload in out)
              (serve in out)]
+    [2 null] ; proper exit
     [_ null])
 )
 ; have to handle eof somehow
@@ -41,13 +48,12 @@
   (for/list ([i (in-range n)])
     (read-bytes (* 1000 1000) in)))
 
+;one client can hog the server, fix this
 (define (speedcheck-server)
   (define listener (tcp-listen 8080))
-  (define (loop) 
-    (let-values ([(in out) (tcp-accept listener)])
-      (serve in out)
-      (close-input-port in)
-      (close-output-port out))
+  (define (my-thread) (start-serve listener))
+  (define (loop)  
+    (if (tcp-accept-ready? listener) (thread my-thread) null)
     (loop))
   (loop))
 
@@ -74,10 +80,11 @@
                        (display (exact->inexact (/ (round (/ (* 100000 n) t)) 100))) ;horrible
                        (displayln "MBps")
                        (connect-loop name disconnect in out)]
-    [":d" (displayln "Disconnected from server")
-                  (close-input-port in)
-                  (close-output-port out)
-                  (disconnect)]
+    [":d" (write-bytes (make-bytes 1 2) out)
+          (displayln "Disconnected from server")
+          (close-input-port in)
+          (close-output-port out)
+          (disconnect)]
     [":q" (displayln "Quitting")]
     [":?" (displayln "help")
           (connect-loop in out)]
@@ -86,16 +93,17 @@
 
 (define (speedcheck-client)
   (define (loop)
-      (display ">")
-  (define cmd (read-line))
-  (match cmd
-    [(? (lambda (x) (regexp-match-positions #rx"connect .*" x))  _) (define-values (in out) (tcp-connect (substring cmd 8) 8080))
-                       (displayln (string-append "Connected to server " (substring cmd 8) ))
-                       (connect-loop (substring cmd 8) loop in out)]
-    [":q" (displayln "Quitting")]
-    [":?" (displayln "help")
-          (loop)]
-    [_ (displayln "Bad input. :? for help")
-       (loop)]))
+    (display ">")
+    (define cmd (read-line))
+    (match cmd
+      [(? (lambda (x) (regexp-match-positions #rx"connect .*" x))  _) (let ([name (substring cmd 8)])
+                                                                        (let-values ([(in out) (tcp-connect name 8080)])
+                                                                          (displayln (string-append "Connected to server " name ))
+                                                                          (connect-loop name loop in out)))]
+      [":q" (displayln "Quitting")]
+      [":?" (displayln "help")
+            (loop)]
+      [_ (displayln "Bad input. :? for help")
+         (loop)]))
   (displayln "Speedcheck, version 0.0.1: https://github.com/zyxw121/Speed-Check   :? for help")
   (loop))
