@@ -6,3 +6,5 @@
   (displayln (vector-ref (current-command-line-arguments) 0)))
 
 (speedcheck)
+;(run-test "localhost")
+;(get-mega "46.101.84.95")

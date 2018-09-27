@@ -2,25 +2,29 @@
  
 (provide
  speedcheck-server
- speedcheck)
+ speedcheck
+ run-test
+ test
+ testu
+ get-mega)
 
 (require racket/tcp)
 (require racket/cmdline)
 
 (define (start-serve listener)
   (let-values ([(in out) (tcp-accept listener)])
-    (displayln "client connected")
+   ; (displayln "client connected")
       (serve in out)
-    (displayln "client disconnected")
+  ;  (displayln "client disconnected")
       (close-input-port in)
       (close-output-port out)))
 
 ;serve a client with the given channels
 (define (serve in out)
-  (displayln "waiting for cmd")
+ ; (displayln "waiting for cmd")
   (define cmd (read-byte in))
-  (display "got cmd: ")
-  (displayln cmd)
+  ;(display "got cmd: ")
+ ; (displayln cmd)
   (match cmd
     [0 (handle-download in out)
                (serve in out)]
@@ -57,7 +61,9 @@
 (define (get-mega hostname)
   (let-values ([(in out) (tcp-connect  hostname 8080)])
     (define (download)
-      (read-bytes (* 1000 1000) in)
+      (let ([t (read-bytes (* 1000 1000) in)])
+        (displayln (bytes-length t)))
+      (displayln "got")
       )
     (write-bytes (bytes 4) out)
     (flush-output out)
@@ -65,25 +71,34 @@
     t)))
 
 (define (handle-download in out)
-  (display "Starting DL ")
+ ; (display "Starting DL ")
   (define n (string->number (read-line in)))
-  (display n)
-  (displayln " kB")
+ ; (display n)
+  ;(displayln " kB")
     (write-bytes (make-bytes (* 1000 n) 0) out)
-    (flush-output)
-  (displayln "DL finished"))
+    (flush-output))
+ ; (displayln "DL finished"))
 
 
 (define (handle-upload in out)
-  (for/list ([i (in-range (read-byte in))])
-    (read-bytes (* 1000) in)))
+  (display "Starting UL ")
+  (define n (string->number (read-line in)))
+  (display n)
+  (displayln " kB")
+  (read-bytes (* 1000 n) in)
+  (displayln "UL finished"))
 
 ; 0 <= n < 256
 (define (request-upload n in out)
   (write-bytes (bytes 1) out)
-  (write-bytes (bytes n) out)
-  (for/list ([i (in-range n)])
-    (write-bytes (make-bytes (* 1000) 0) out)))
+  (flush-output)
+  (write-string (number->string n) out)
+  (newline out)
+  (flush-output out)
+  (define (upload)
+      (write-bytes (make-bytes (* 1000 n) 6) out)
+    )
+  (with-time upload))
 
 ; n between 0 and 255, kB
 (define (request-download n in out)
@@ -91,6 +106,7 @@
 ;  (display n)
 ;  (displayln "kB")
   (write-bytes (bytes 0) out)
+  (flush-output)
 ;    (displayln "sent DL")
   (write-string (number->string n) out)
   (newline out)
@@ -114,35 +130,43 @@
 
 (define (with-time f)
   (define-values (a b c d) (time-apply f null))
-  b)
+  c)
 
-
-(define (download-batch n hostname)
+(define (batch proc n hostname i)
   (let-values ([(in out) (tcp-connect hostname 8080)])
-    (define t (request-download n in out))
+    (define t (proc n in out))
     (close-input-port in)
     (close-output-port out)
+    (display #\return)
+    (display i)
     t))
 
-(define (run-test hostname)
+(define (run-a-test proc hostname)
 ;  (displayln hostname)
-  (define-values (b t) (find-size (lambda (x)  (with-time (lambda ()  (download-batch x hostname)))) 10))
-    (let ([n (round (/ 8000 t))])
+  (define-values (b t) (find-size (lambda (x)  (with-time (lambda () (batch proc x hostname 0)))) 10 1))
+    (let ([n (round (/ 20000 t))])
     (display n)
     (display " batches of ")
     (display b)
     (displayln "kB")
-    (let* ([values (map (lambda (x) (download-batch b hostname)) (range 0 n))]
+    (let* ([values (map (lambda (x) (batch proc b hostname x)) (range 0 n))]
            [trimmed (trim values)]
            [average (round (/ (foldr + 0 trimmed) (length trimmed)))]
            [speed (exact->inexact (/ (round (/ (* 800 b) average)) 100))])
-      ;(displayln trimmed)
+      (displayln trimmed)
       (display average)
-      (displayln "ms")
+      (displayln " ms")
       (display speed)
-      (displayln "Mbps")
+      (displayln " Mbps")
       ) ))
-  
+
+
+(define (run-test hostname)
+  (displayln "Testing Download")
+  (run-a-test request-download hostname)
+  (displayln "Testing Upload")
+  (run-a-test request-upload hostname)
+  )
 
 (define (trim values)
   (let* ([sorted (sort values <=)]
@@ -158,9 +182,21 @@
 
 ;finds the size of batches to test, returns n such that 50 < proc n < 200
 ;proc : n -> ms
-(define (find-size proc b)
+(define (find-size proc b c)
 (let ([t (proc b)])
-  (if (<= t 100) (find-size proc (round (* b (/ 100 t)))) (values b t) )
+  (cond [(<= t 200) (begin
+                   (display b)
+                   (display "kb in ")
+                   (display t)
+                   (displayln "ms")
+                   (find-size proc (round (* b (/ 200 t))) b))]
+        [(<= 1000 t) c]
+        [else (begin
+                                                               (display b)
+                                                               (display "kb in")
+                                                               (display t)
+                                                               (displayln "ms.")
+                                                               (values b t) )])
   ))
 
 
@@ -169,8 +205,15 @@
   (define t (request-download n in out))
     (close-input-port in)
     (close-output-port out)
+    t  ))
+(define (testu n)
+  (let-values ([(in out) (tcp-connect  "localhost" 8080)])
+  (define t (request-upload n in out))
+    (close-input-port in)
+    (close-output-port out)
     t  
   ))
+
 
 (define (speedcheck)
   (if (= (vector-length (current-command-line-arguments)) 1) 
