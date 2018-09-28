@@ -16,20 +16,13 @@
 
 ; n : int, kB
 (define (request-download n in out)
-;  (display "Starting DL ")
-;  (display n)
-;  (displayln "kB")
   (write-bytes (bytes 0) out)
   (flush-output)
-;    (displayln "sent DL")
   (write-string (number->string n) out)
   (newline out)
-;  (displayln "Sent n")
   (flush-output out)
   (define (download)
-      (read-bytes (* 1000 n) in)
-;      (displayln "done!")
-    )
+      (read-bytes (* 1000 n) in))
   (with-time download))
 
 (define (with-time f)
@@ -46,7 +39,6 @@
     t))
 
 (define (run-a-test proc hostname)
-;  (displayln hostname)
   (define-values (b t) (find-size (lambda (x)  (with-time (lambda () (batch proc x hostname 0)))) 10 1 1))
     (let ([n (round (/ 20000 t))])
     (display n)
@@ -88,19 +80,9 @@
 ;proc : n -> ms
 (define (find-size proc b c t1)
 (let ([t (proc b)])
-  (cond [(<= t 200) (begin
-                   (display b)
-                   (display "kb in ")
-                   (display t)
-                   (displayln "ms")
-                   (find-size proc (round (* b (/ 200 t))) b t))]
+  (cond [(<= t 200) (find-size proc (round (* b (/ 200 t))) b t)]
         [(<= 1000 t) (values c t1)]
-        [else (begin
-                                                               (display b)
-                                                               (display "kb in")
-                                                               (display t)
-                                                               (displayln "ms.")
-                                                               (values b t) )])
+        [else ((values b t) ])
   ))
 
 
