@@ -2,4 +2,4 @@
 (require racket/tcp)
 (require "speedcheck-lib.rkt")
 
-(speedcheck-client)
+(speedcheck)
