@@ -12,23 +12,13 @@
 
 
 (define (handle-upload in out)
-  (display "Starting UL ")
+;  (display "Starting UL ")
   (define n (string->number (read-line in)))
-  (display n)
-  (displayln " kB")
+  ;(display n)
+  ;(displayln " kB")
   (read-bytes (* 1000 n) in)
-  (displayln "UL finished"))
+  ;(displayln "UL finished"))
 
-
-(define (send-kilo out)
-  (write-bytes (make-bytes 1000 0) out)
-  (display "sent kilo ")
-  (flush-output))
-
-(define (send-mega out)
-  (write-bytes (make-bytes (* 1000 1000) 0) out)
-  (display "sent mega ")
-  (flush-output))
 
 (define (start-serve listener)
   (let-values ([(in out) (tcp-accept listener)])
@@ -50,8 +40,6 @@
     [1 (handle-upload in out)
              (serve in out)]
     [2 null] ; proper exit
-    [3 (send-kilo out)]
-    [4 (send-mega out)]
     [_ null])
 )
 ; have to handle eof somehow

@@ -1,35 +1,8 @@
 #lang racket
 (require racket/tcp)
-
 (require racket/cmdline)
 
-
-
-
-(define (get-kilo hostname)
-  (let-values ([(in out) (tcp-connect  hostname 8080)])
-    (define (download)
-      (read-bytes 1000 in)
-      )
-    (write-bytes (bytes 3) out)
-    (flush-output out)
-    (let ([t (with-time download)])
-    t)))
-
-(define (get-mega hostname)
-  (let-values ([(in out) (tcp-connect  hostname 8080)])
-    (define (download)
-      (let ([t (read-bytes (* 1000 1000) in)])
-        (displayln (bytes-length t)))
-      (displayln "got")
-      )
-    (write-bytes (bytes 4) out)
-    (flush-output out)
-    (let ([t (with-time download)])
-    t)))
-
-
-; 0 <= n < 256
+; n : int, kB
 (define (request-upload n in out)
   (write-bytes (bytes 1) out)
   (flush-output)
@@ -41,7 +14,7 @@
     )
   (with-time upload))
 
-; n between 0 and 255, kB
+; n : int, kB
 (define (request-download n in out)
 ;  (display "Starting DL ")
 ;  (display n)
@@ -58,10 +31,6 @@
 ;      (displayln "done!")
     )
   (with-time download))
-
-
-
-
 
 (define (with-time f)
   (define-values (a b c d) (time-apply f null))
@@ -132,21 +101,6 @@
                                                                (display t)
                                                                (displayln "ms.")
                                                                (values b t) )])
-  ))
-
-
-(define (test n)
-  (let-values ([(in out) (tcp-connect  "46.101.84.95" 8080)])
-  (define t (request-download n in out))
-    (close-input-port in)
-    (close-output-port out)
-    t  ))
-(define (testu n)
-  (let-values ([(in out) (tcp-connect  "localhost" 8080)])
-  (define t (request-upload n in out))
-    (close-input-port in)
-    (close-output-port out)
-    t  
   ))
 
 
