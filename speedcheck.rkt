@@ -3,7 +3,7 @@
 (require racket/cmdline)
 
 ; n : int, kB
-(define (request-upload n in out)
+(define (upload n in out)
   (write-bytes (bytes 1) out)
   (flush-output)
   (write-string (number->string n) out)
@@ -14,7 +14,7 @@
   (with-time upload))
 
 ; n : int, kB
-(define (request-download n in out)
+(define (download n in out)
   (write-bytes (bytes 0) out)
   (flush-output)
   (write-string (number->string n) out)
@@ -28,22 +28,22 @@
   (define-values (a b c d) (time-apply f null))
   c)
 
-(define (batch proc n hostname)
-  (let-values ([(in out) (tcp-connect hostname 8080)])
+(define (batch proc n hostname port)
+  (define-values (in out) (tcp-connect hostname port))
     (define t (proc n in out))
     (close-input-port in)
     (close-output-port out)
-    t))
+    t)
 
-(define (run-a-test proc hostname)
-  (define-values (b t) (find-size (lambda (x)  (with-time (lambda () (batch proc x hostname)))) 10 1 1)) 
+(define (run-a-test proc hostname port)
+  (define-values (b t) (find-size (lambda (x)  (with-time (lambda () (batch proc x hostname port)))) 10 1 1)) 
     (let* ([n (round (/ 20000 t))]
            [values (map
                     (lambda (x)
                       (display #\return)
                       (display (round (/ (* 100 (+ x 1)) n)))
                       (display "%")
-                      (batch proc b hostname))
+                      (batch proc b hostname port))
                     (range 0 n))])
            (report values b)
            ))
@@ -56,11 +56,11 @@
       (display speed)
       (displayln " Mbps")))
 
-(define (run-test hostname)
+(define (run-test hostname port)
   (displayln "Testing Download")
-  (run-a-test request-download hostname)
+  (run-a-test download hostname port)
   (displayln "Testing Upload")
-  (run-a-test request-upload hostname))
+  (run-a-test upload hostname port))
 
 (define (trim values)
   (let* ([sorted (sort values <=)]
@@ -84,11 +84,20 @@
         [(<= 1000 t) (values c t1)]
         [else (values b t) ])))
 
+(define (get-info)
+  (cond [(>= (vector-length (current-command-line-arguments)) 2)
+         (cons
+          (vector-ref (current-command-line-arguments) 0)
+          (string->number (vector-ref (current-command-line-arguments) 1)))]
+        [(= (vector-length (current-command-line-arguments)) 1)
+         (cons
+          (vector-ref (current-command-line-arguments) 0)
+          8080)]
+        [else #f]
+        ))
+
 (define (speedcheck)
-  (if (= (vector-length (current-command-line-arguments)) 1) 
-      (let  ([hostname (vector-ref (current-command-line-arguments) 0)])
-        (displayln hostname)
-        (run-test hostname))
-      (displayln "Bad args")))
+ (cond [(get-info) => (lambda (x) (run-test (car x) (cdr x)))]
+       [else (displayln "Usage: 'speedcheck [hostname] [port]'. Port is optional, default is 8080")]))
 
 (speedcheck)
