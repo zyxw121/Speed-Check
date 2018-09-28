@@ -143,7 +143,7 @@
 
 (define (run-a-test proc hostname)
 ;  (displayln hostname)
-  (define-values (b t) (find-size (lambda (x)  (with-time (lambda () (batch proc x hostname 0)))) 10 1))
+  (define-values (b t) (find-size (lambda (x)  (with-time (lambda () (batch proc x hostname 0)))) 10 1 1))
     (let ([n (round (/ 20000 t))])
     (display n)
     (display " batches of ")
@@ -182,15 +182,15 @@
 
 ;finds the size of batches to test, returns n such that 50 < proc n < 200
 ;proc : n -> ms
-(define (find-size proc b c)
+(define (find-size proc b c t1)
 (let ([t (proc b)])
   (cond [(<= t 200) (begin
                    (display b)
                    (display "kb in ")
                    (display t)
                    (displayln "ms")
-                   (find-size proc (round (* b (/ 200 t))) b))]
-        [(<= 1000 t) c]
+                   (find-size proc (round (* b (/ 200 t))) b t))]
+        [(<= 1000 t) (values c t1)]
         [else (begin
                                                                (display b)
                                                                (display "kb in")
