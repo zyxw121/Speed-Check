@@ -1,5 +1,6 @@
 #lang racket
 (require racket/tcp)
+(require racket/cmdline)
 
 (define (handle-download in out)
   (define n (string->number (read-line in)))
@@ -11,22 +12,46 @@
   (read-bytes (* 1000 n) in)
   void)
 
-(define (serve listener)
-  (let-values ([(in out) (tcp-accept listener)])
+(define (accept listener)
+  (define cust (make-custodian))
+  (parameterize ([current-custodian cust])
+  (define-values (in out) (tcp-accept listener))
     (thread (lambda () 
-    (match (read-byte in)
-    [0 (handle-download in out)]
-    [1 (handle-upload in out)]
-    [_ void])
-      (close-input-port in)
-      (close-output-port out)))))
+              (match (read-byte in)
+                [0 (handle-download in out)]
+                [1 (handle-upload in out)]
+                [_ void])
+              (close-input-port in)
+              (close-output-port out))))
+  (thread (lambda ()
+            (sleep 5)
+            (custodian-shutdown-all cust))))
 
-;serve a client with the given channels
+(define (serve port-no)
+  (define main-cust (make-custodian))
+  (parameterize ([current-custodian main-cust])
+    (define listener (tcp-listen port-no 5 #t))
+    (define (loop)
+      (accept listener)
+      (loop))
+    (thread loop))
+  (lambda ()
+    (custodian-shutdown-all main-cust)))
+
 (define (speedcheck-server)
-  (define listener (tcp-listen 8080))
-  (define (loop)  
-    (serve listener) 
-    (loop))
-  (loop))
+  (let* ([port
+    (if (and
+         (>= (vector-length (current-command-line-arguments)) 1)
+         (port-number? (string->number (vector-ref (current-command-line-arguments) 0))))
+        (string->number (vector-ref (current-command-line-arguments) 0))
+        8080)]
+  [ stop (serve port)])
+  (define (loop)
+    (let ([cmd (read-line)])
+      (cond [(equal? cmd "quit") (displayln "Quitting")
+                            (stop)]
+            [else (loop)])))
+  (displayln "Started Speed-Check server")  
+  (loop)))
 
 (speedcheck-server)
