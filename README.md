@@ -1,6 +1,9 @@
 # Speed-Check
 Lightweight Download/Upload Speed Testing Server and Client
 
+## Requirements
+The latest version of [Racket](https://racket-lang.org/).
+
 ## Getting Started
 
 Compile the Racket files `speedcheck.rkt` and `speedcheck-server.rkt`:

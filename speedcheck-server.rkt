@@ -3,7 +3,6 @@
 (require racket/cmdline)
 
 (define (download in out)
-  (displayln"gotDL")
   (define n (string->number (read-line in)))
     (write-bytes (make-bytes (* 1000 n) 0) out)
     (flush-output))
@@ -17,20 +16,17 @@
   (define cust (make-custodian))
   (parameterize ([current-custodian cust])
   (define-values (in out) (tcp-accept listener))
-    (displayln "Connected")
-    (thread (lambda ()
-              (displayln "waiting for cmd")
+  (define (handle)
               (define cmd (read-byte in))
-              (display "got cmd: ")
-              (displayln cmd)
               (match cmd
-                [0 (download in out)]
-                [1 (upload in out)]
-                [_ void])
-              (close-input-port in)
-              (close-output-port out))))
+                [0 (download in out)
+                   (handle)]
+                [1 (upload in out)
+                   (handle)]
+                [_ void]))
+  (thread handle))
   (thread (lambda ()
-            (sleep 5)
+            (sleep 120)
             (custodian-shutdown-all cust))))
 
 (define (serve port-no)
@@ -56,9 +52,10 @@
     (display ">")
     (let ([cmd (read-line)])
       (cond [(equal? cmd "quit")
-             (displayln "Quitting")
+             (displayln "Quitting Speed-Check")
              (stop)]
-            [else (loop)])))
+            [else (displayln "Unrecognized command. 'quit' to quit.")
+             (loop)])))
   (displayln "Started Speed-Check server")  
   (loop)))
 
