@@ -12,6 +12,10 @@
   (read-bytes (* 1000 n) in)
   void)
 
+(define (write-console s)
+  (displayln s)
+  (display ">"))
+
 (define (accept listener)
   (define cust (make-custodian))
   (parameterize ([current-custodian cust])
@@ -19,12 +23,12 @@
   (define (handle)
               (define cmd (read-byte in))
               (match cmd
-                [0 (download in out)
+                [0  (download in out)
                    (handle)]
                 [1 (upload in out)
                    (handle)]
                 [_ void]))
-  (thread handle))
+  (thread (lambda () (with-handlers ([exn:fail? (lambda (e) (write-console "Error"))]) (handle)))))
   (thread (lambda ()
             (sleep 120)
             (custodian-shutdown-all cust))))
@@ -56,7 +60,8 @@
              (stop)]
             [else (displayln "Unrecognized command. 'quit' to quit.")
              (loop)])))
-  (displayln "Started Speed-Check server")  
+  (display "Started Speed-Check server on port ")
+  (displayln port)
   (loop)))
 
 (speedcheck-server)
