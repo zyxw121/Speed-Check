@@ -9,9 +9,7 @@
   (write-string (number->string n) out)
   (newline out)
   (flush-output out)
-  (define (upload)
-      (write-bytes (make-bytes (* 1000 n) 6) out))
-  (with-time upload))
+  (time-expr (write-bytes (make-bytes (* 1000 n) 6) out)))
 
 ; n : int, kB
 (define (download n in out)
@@ -20,16 +18,14 @@
   (write-string (number->string n) out)
   (newline out)
   (flush-output out)
-  (define (download)
-      (read-bytes (* 1000 n) in))
-  (with-time download))
+  (time-expr (read-bytes (* 1000 n) in)))
 
-(define (with-time f)
-  (define-values (a b c d) (time-apply f null))
-  c)
+(define-syntax-rule (time-expr e) 
+  (let-values ([(a b c d) (time-apply (lambda () e) null)])
+   c))
 
 (define (run-a-test proc in out)
-  (define-values (b t) (find-size (lambda (x)  (with-time (lambda () (proc x in out)))) 10 1 1)) 
+  (define-values (b t) (find-size (lambda (x)  (time-expr (proc x in out))) 10 1 1)) 
     (let* ([n (round (/ 20000 (max t 1)))]
            [values (map
                     (lambda (x)
@@ -60,9 +56,9 @@
 
 (define (trim values)
   (let* ([sorted (sort values <=)]
-        [n (length values)]
-        [front (round (/ n 10))]
-        [back (round (/ n 5))])
+         [n (length values)]
+         [front (round (/ n 10))]
+         [back (round (/ n 5))])
     (trim-list sorted front back)))
 
 (define (trim-list list front back)
@@ -80,7 +76,7 @@
         [(<= 1000 t) (values c t1)]
         [else (values b t) ])))
 
-(define (get-info)
+(define (get-args)
   (cond [(>= (vector-length (current-command-line-arguments)) 2)
          (cons
           (vector-ref (current-command-line-arguments) 0)
@@ -93,7 +89,7 @@
         ))
 
 (define (speedcheck)
- (cond [(get-info) => (lambda (x) (run-test (car x) (cdr x)))]
+ (cond [(get-args) => (lambda (x) (run-test (car x) (cdr x)))]
        [else (displayln "Usage: 'speedcheck [hostname] [port]'. Port is optional, default is 8080")]))
 
 (speedcheck)
