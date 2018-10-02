@@ -2,6 +2,9 @@
 (require racket/tcp)
 (require racket/cmdline)
 
+(define-syntax-rule (fork e ...)
+  (thread (lambda () (begin e ...))))
+
 (define (download in out)
   (define n (string->number (read-line in)))
     (write-bytes (make-bytes (* 1000 n) 0) out)
@@ -28,15 +31,14 @@
                 [1 (upload in out)
                    (handle)]
                 [_ void]))
-  (thread (lambda () (with-handlers ([exn:fail? (lambda (e) (write-console "Error"))]) (handle)))))
-  (thread (lambda ()
-            (sleep 120)
-            (custodian-shutdown-all cust))))
+  (fork (with-handlers ([exn:fail? (lambda (e) (write-console "Error"))]) (handle)))
+  (fork (sleep 120)
+        (custodian-shutdown-all cust))))
 
-(define (serve port-no)
+(define (serve port)
   (define main-cust (make-custodian))
   (parameterize ([current-custodian main-cust])
-    (define listener (tcp-listen port-no 5 #t))
+    (define listener (tcp-listen port 5 #t))
     (define (loop)
       (accept listener)
       (loop))
