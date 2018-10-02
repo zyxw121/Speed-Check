@@ -89,7 +89,7 @@
         ))
 
 (define (speedcheck)
- (cond [(get-args) => (lambda (x) (run-test (car x) (cdr x)))]
+ (cond [(get-args) => (lambda (x) (with-handlers ([exn:fail? (lambda (e) (displayln "\nUh oh, something went wrong"))]) (run-test (car x) (cdr x))))]
        [else (displayln "Usage: 'speedcheck [hostname] [port]'. Port is optional, default is 8080")]))
 
 (speedcheck)
