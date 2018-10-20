@@ -62,7 +62,8 @@
              (stop)]
             [else (displayln "Unrecognized command. 'quit' to quit.")
              (loop)])))
-  (display "Started Speed-Check server on port ")
+  (displayln "Speed-Check version 0.1.0")
+  (display "Started server on port ")
   (displayln port)
   (loop)))
 

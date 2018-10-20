@@ -16,20 +16,20 @@
 ; n : int, kB
 (define (upload n in out)
   (send-header 1 n out)
-  (time-expr (write-bytes (make-bytes (* 1000 n) 6) out)))
+  (write-bytes (make-bytes (* 1000 n) 6) out))
 
 ; n : int, kB
 (define (download n in out)
   (send-header 0 n out)
-  (time-expr (read-bytes (* 1000 n) in)))
+  (read-bytes (* 1000 n) in))
 
 (define (run-a-test proc)
-  (define-values (b t) (find-size proc 10 1 1)) 
+  (define-values (b t) (find-size proc 10)) 
     (let* ([n (round (/ 20000 (max t 1)))]
            [values (map
                     (lambda (x)
                       (display-inline (percent x n))
-                      (proc b))
+                      (time-expr (proc b)))
                     (range 0 n))])
            (report values b)
            ))
@@ -44,6 +44,7 @@
   (display x))
 
 (define (run-test hostname port)
+  (displayln "Speed-Check version 0.1.0")
   (define-values (in out) (tcp-connect hostname port))
   (displayln "Testing Download")
   (run-a-test (lambda (x) (download x in out)))
@@ -59,8 +60,7 @@
   (let* ([trimmed (trim values)]
          [avg-time (round (avg-list trimmed))]
          [speed  (/ (* 8 b) avg-time)])
-      (display #\newline)
-      (display (real->decimal-string speed))
+      (display-inline (real->decimal-string speed))
       (displayln " Mbps")))
 
 (define (trim values)
@@ -74,16 +74,19 @@
   (list-tail (reverse (list-tail (reverse list) back)) front))
 
 ;finds the size of batches to test
-;want b < 20 000
-; t < 500
-; t > 50
-;proc : n -> ms
-(define (find-size proc b c t1)
-(let ([t (proc b)])
-  (cond [(<= 20000 b) (values c t1)]
-        [(<= t 200) (find-size proc (round (* b (/ 200 (max t 1)))) b t)]
-        [(<= 1000 t) (values c t1)]
-        [else (values b t) ])))
+;want b < max-b
+;min-t < t < max-t
+(define (find-size proc b [min-t 200] [max-t 1000] [max-b 20000])
+  (define (iter n b0 t0)
+    (let ([t (time-expr (proc n))])
+      (cond [(or (<= max-b b) (<= max-t t)) (values b0 t0)]
+            [(<= t min-t) (iter (next n t min-t) n t)]
+            [else (values n t) ])))
+  (iter b 1 1))
+
+;assuming n -> t, finds m with m -> target
+(define (next n t target)
+  (round (* n (/ target (max t 1)))))
 
 (define (get-args)
   (cond [(>= (vector-length (current-command-line-arguments)) 2)
@@ -97,10 +100,18 @@
         [else #f]
         ))
 
+;(define (handle-args list)
+;  )
+
+
 (define (speedcheck)
  (cond [(get-args) => (lambda (x)
-                        (with-handlers ([exn:fail? (lambda (e) (displayln "\nUh oh, something went wrong"))])
+                        (with-handlers ([exn:fail:network? (lambda (e) (displayln "\nUh oh, something went wrong with the connection"))]
+                                        ;[exn:fail? (lambda (e) (displayln "\nUh oh, something went wrong"))])
+                                        )
                           (run-test (car x) (cdr x))))]
-       [else (displayln "Usage: 'speedcheck [hostname] [port]'. Port is optional, default is 8080")]))
+       [else (displayln "Usage: 'speedcheck [hostname]'. Optional arguments:")
+             (displayln "-p [port]         default is 8080")
+             (displayln "-v                verbose mode")]))
 
 (speedcheck)
