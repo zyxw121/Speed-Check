@@ -1,14 +1,15 @@
 #lang racket
 (require racket/tcp)
 (require racket/cmdline)
+
 (define current-verbose-out (make-parameter (lambda (x) (void))))
 (define current-port (make-parameter 8080))
-
-(define (verbose x) ((current-verbose-out) x))
 
 (define-syntax-rule (time-expr e) 
   (let-values ([(a b c d) (time-apply (lambda () e) null)])
    c))
+
+(define (verbose x) ((current-verbose-out) x))
 
 (define (send-header x n out)
   (write-bytes (bytes x) out)
@@ -35,10 +36,9 @@
   (display #\return)
   (display x))
 
-(define (avg-list xs)
-  (/ (foldr + 0 xs) (length xs)))
-
 (define (report vs b)
+  (define (avg-list xs)
+    (/ (foldr + 0 xs) (length xs)))
   (let* ([trimmed (trim vs)]
          [avg-time (round (avg-list trimmed))]
          [speed  (/ (* 8 b) avg-time)])
@@ -46,29 +46,26 @@
       (displayln " Mbps")))
 
 (define (trim vs)
+  (define (chop-list list front back)
+    (list-tail (reverse (list-tail (reverse list) back)) front))
   (let* ([sorted (sort vs <=)]
          [n (length vs)]
          [front (round (/ n 10))]
          [back (round (/ n 5))])
     (chop-list sorted front back)))
 
-(define (chop-list list front back)
-  (list-tail (reverse (list-tail (reverse list) back)) front))
-
 ;finds the size of batches to test
 ;want b < max-b
 ;min-t < t < max-t
 (define (find-size proc b [min-t 200] [max-t 1000] [max-b 20000])
+  (define (next n t target)
+    (round (* n (/ target (max t 1)))))
   (define (iter n b0 t0)
     (let ([t (time-expr (proc n))])
       (cond [(or (<= max-b n) (<= max-t t)) (values b0 t0)]
             [(<= t min-t) (iter (next n t min-t) n t)]
             [else (values n t) ])))
   (iter b 1 1))
-
-;assuming n -> t, finds m with m -> target
-(define (next n t target)
-  (round (* n (/ target (max t 1)))))
 
 (define (run-test)
   (define (execute proc)

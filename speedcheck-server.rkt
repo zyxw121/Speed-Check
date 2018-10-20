@@ -2,6 +2,9 @@
 (require racket/tcp)
 (require racket/cmdline)
 
+(define current-verbose-out (make-parameter (lambda (x) (void))))
+(define current-port (make-parameter 8080))
+
 (define-syntax-rule (fork e ...)
   (thread (lambda () (begin e ...))))
 
@@ -46,25 +49,28 @@
   (lambda ()
     (custodian-shutdown-all main-cust)))
 
+(command-line
+   #:program "Speed-Check server"
+   #:once-each
+   [("-v" "--verbose") "Run with verbose messages"
+                       (current-verbose-out displayln)]
+   [("-p" "--port") port
+                    "Connect on a specified port"
+                    (current-port (string->number port))])
+
 (define (speedcheck-server)
-  (let* ([port
-    (if (and
-         (>= (vector-length (current-command-line-arguments)) 1)
-         (port-number? (string->number (vector-ref (current-command-line-arguments) 0))))
-        (string->number (vector-ref (current-command-line-arguments) 0))
-        8080)]
-         [stop (serve port)])
-  (define (loop)
-    (display ">")
-    (let ([cmd (read-line)])
-      (cond [(equal? cmd "quit")
-             (displayln "Quitting Speed-Check")
-             (stop)]
-            [else (displayln "Unrecognized command. 'quit' to quit.")
-             (loop)])))
+  (letrec ([stop (serve (current-port))]
+           [loop (lambda () 
+                   (display ">")
+                   (let ([cmd (read-line)])
+                     (cond [(equal? cmd "quit")
+                            (displayln "Quitting Speed-Check")
+                            (stop)]
+                           [else (displayln "Unrecognized command. 'quit' to quit.")
+                                 (loop)])))])
   (displayln "Speed-Check version 0.1.0")
   (display "Started server on port ")
-  (displayln port)
+  (displayln (current-port))
   (loop)))
 
 (speedcheck-server)
