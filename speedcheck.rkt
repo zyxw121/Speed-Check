@@ -1,6 +1,10 @@
 #lang racket
 (require racket/tcp)
 (require racket/cmdline)
+(define current-verbose-out (make-parameter (lambda (x) (void))))
+(define current-port (make-parameter 8080))
+
+(define (verbose x) ((current-verbose-out) x))
 
 (define-syntax-rule (time-expr e) 
   (let-values ([(a b c d) (time-apply (lambda () e) null)])
@@ -8,7 +12,6 @@
 
 (define (send-header x n out)
   (write-bytes (bytes x) out)
-  (flush-output)
   (write-string (number->string n) out)
   (newline out)
   (flush-output out))
@@ -23,17 +26,6 @@
   (send-header 0 n out)
   (read-bytes (* 1000 n) in))
 
-(define (run-a-test proc)
-  (define-values (b t) (find-size proc 10)) 
-    (let* ([n (round (/ 20000 (max t 1)))]
-           [values (map
-                    (lambda (x)
-                      (display-inline (percent x n))
-                      (time-expr (proc b)))
-                    (range 0 n))])
-           (report values b)
-           ))
-
 (define (percent x y)
   (string-append
    (number->string (round (/ (* 100 (+ x 1)) y)))
@@ -43,29 +35,19 @@
   (display #\return)
   (display x))
 
-(define (run-test hostname port)
-  (displayln "Speed-Check version 0.1.0")
-  (define-values (in out) (tcp-connect hostname port))
-  (displayln "Testing Download")
-  (run-a-test (lambda (x) (download x in out)))
-  (displayln "Testing Upload")
-  (run-a-test (lambda (x) (upload x in out)))
-  (close-input-port in)
-  (close-output-port out))
-
 (define (avg-list xs)
   (/ (foldr + 0 xs) (length xs)))
 
-(define (report values b)
-  (let* ([trimmed (trim values)]
+(define (report vs b)
+  (let* ([trimmed (trim vs)]
          [avg-time (round (avg-list trimmed))]
          [speed  (/ (* 8 b) avg-time)])
       (display-inline (real->decimal-string speed))
       (displayln " Mbps")))
 
-(define (trim values)
-  (let* ([sorted (sort values <=)]
-         [n (length values)]
+(define (trim vs)
+  (let* ([sorted (sort vs <=)]
+         [n (length vs)]
          [front (round (/ n 10))]
          [back (round (/ n 5))])
     (chop-list sorted front back)))
@@ -79,7 +61,7 @@
 (define (find-size proc b [min-t 200] [max-t 1000] [max-b 20000])
   (define (iter n b0 t0)
     (let ([t (time-expr (proc n))])
-      (cond [(or (<= max-b b) (<= max-t t)) (values b0 t0)]
+      (cond [(or (<= max-b n) (<= max-t t)) (values b0 t0)]
             [(<= t min-t) (iter (next n t min-t) n t)]
             [else (values n t) ])))
   (iter b 1 1))
@@ -88,30 +70,37 @@
 (define (next n t target)
   (round (* n (/ target (max t 1)))))
 
-(define (get-args)
-  (cond [(>= (vector-length (current-command-line-arguments)) 2)
-         (cons
-          (vector-ref (current-command-line-arguments) 0)
-          (string->number (vector-ref (current-command-line-arguments) 1)))]
-        [(= (vector-length (current-command-line-arguments)) 1)
-         (cons
-          (vector-ref (current-command-line-arguments) 0)
-          8080)]
-        [else #f]
-        ))
+(define (run-test)
+  (define (execute proc)
+    (define-values (b t) (find-size proc 10)) 
+    (let* ([n (round (/ 20000 (max t 1)))]
+           [values (map
+                    (lambda (x)
+                      (display-inline (percent x n))
+                      (time-expr (proc b)))
+                    (range 0 n))])
+      (report values b)))
+  (displayln "Speed-Check version 0.1.0")
+  (define-values (in out) (tcp-connect hostname (current-port)))
+  (displayln "Testing Download")
+  (execute (lambda (x) (download x in out)))
+  (displayln "Testing Upload")
+  (execute (lambda (x) (upload x in out)))
+  (close-input-port in)
+  (close-output-port out))
 
-;(define (handle-args list)
-;  )
+(define hostname
+  (command-line
+   #:program "Speed-Check"
+   #:once-each
+   [("-v" "--verbose") "Run with verbose messages"
+                       (current-verbose-out displayln)]
+   [("-p" "--port") port
+                    "Connect on a specified port"
+                    (current-port (string->number port))]
+   #:args (hostname)
+   hostname))
 
-
-(define (speedcheck)
- (cond [(get-args) => (lambda (x)
-                        (with-handlers ([exn:fail:network? (lambda (e) (displayln "\nUh oh, something went wrong with the connection"))]
-                                        ;[exn:fail? (lambda (e) (displayln "\nUh oh, something went wrong"))])
-                                        )
-                          (run-test (car x) (cdr x))))]
-       [else (displayln "Usage: 'speedcheck [hostname]'. Optional arguments:")
-             (displayln "-p [port]         default is 8080")
-             (displayln "-v                verbose mode")]))
-
-(speedcheck)
+(with-handlers ([exn:fail:network? (lambda (e) (displayln "\nUh oh, something went wrong with the connection"))]
+                [exn:fail? (lambda (e) (displayln "\nUh oh, something went wrong"))])
+  (run-test))
