@@ -42,8 +42,9 @@
   (let* ([trimmed (trim vs)]
          [avg-time (round (avg-list trimmed))]
          [speed  (/ (* 8 b) avg-time)])
-      (display-inline (real->decimal-string speed))
-      (displayln " Mbps")))
+    (display "\n")
+    (display (real->decimal-string speed))
+    (displayln " Mbps")))
 
 (define (trim vs)
   (define (chop-list list front back)
@@ -70,11 +71,27 @@
 (define (run-test)
   (define (execute proc)
     (define-values (b t) (find-size proc 10)) 
+    (verbose b)
+    (verbose "kB chunks, expecting ")
+    (verbose t)
+    (verbose "ms each\n")
     (let* ([n (round (/ 20000 (max t 1)))]
+           [progress (lambda (x t)
+                       (display-inline (percent x n))
+                       (verbose "   ")
+                       (verbose x)
+                       (verbose " of ")
+                       (verbose n)
+                       (verbose "   ")
+                       (verbose t)
+                       (verbose "ms")
+                       (display "   ")
+                       (display (real->decimal-string (/ (* 8 b) t)))
+                       (display "Mbps")
+                       t)]
            [values (map
                     (lambda (x)
-                      (display-inline (percent x n))
-                      (time-expr (proc b)))
+                       (progress x (time-expr (proc b))))
                     (range 0 n))])
       (report values b)))
   (displayln "Speed-Check version 0.1.0")
@@ -91,7 +108,7 @@
    #:program "Speed-Check"
    #:once-each
    [("-v" "--verbose") "Run with verbose messages"
-                       (current-verbose-out displayln)]
+                       (current-verbose-out display)]
    [("-p" "--port") port
                     "Connect on a specified port"
                     (current-port (string->number port))]
