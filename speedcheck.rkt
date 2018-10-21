@@ -5,6 +5,9 @@
 (define current-verbose-out (make-parameter (lambda (x) (void))))
 (define current-port (make-parameter 8080))
 
+(define-syntax-rule (no-return e)
+  ((lambda (x) (void)) e))
+
 (define-syntax-rule (time-expr e) 
   (let-values ([(a b c d) (time-apply (lambda () e) null)])
    c))
